@@ -42,11 +42,11 @@ public class SampleAppApplication {
 	@Bean
     public PaypalServerSDKClient paypalClient() {
         return new PaypalServerSDKClient.Builder()
-            .loggingConfig(builder - > builder
+            .loggingConfig(builder -> builder
                 .level(Level.DEBUG)
-                .requestConfig(logConfigBuilder - > logConfigBuilder.body(true))
-                .responseConfig(logConfigBuilder - > logConfigBuilder.headers(true)))
-            .httpClientConfig(configBuilder - > configBuilder
+                .requestConfig(logConfigBuilder -> logConfigBuilder.body(true))
+                .responseConfig(logConfigBuilder -> logConfigBuilder.headers(true)))
+            .httpClientConfig(configBuilder -> configBuilder
                 .timeout(0))
             .environment(Environment.SANDBOX)
             .clientCredentialsAuth(new ClientCredentialsAuthModel.Builder(
