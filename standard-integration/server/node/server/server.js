@@ -51,15 +51,15 @@ const createOrder = async (cart) => {
           shipping: {
             options: [
               {
-                id: '',
-                label: '',
+                id: "",
+                label: "",
                 selected: false,
                 type: ShippingType.SHIPPING,
                 amount: {
-                  currencyCode: '',
-                  value: '',
+                  currencyCode: "",
+                  value: "",
                 },
-              }
+              },
             ],
           },
         },
@@ -185,6 +185,44 @@ app.post("/api/orders/:orderID/capture", async (req, res) => {
 });
 
 /**
+ * Authorize payment for the created order to complete the transaction.
+ * @see https://developer.paypal.com/docs/api/orders/v2/#orders_authorize
+ */
+const authorizeOrder = async (orderID) => {
+  const collect = {
+    id: orderID,
+  };
+
+  try {
+    const { body, ...httpResponse } = await ordersController.ordersAuthorize(
+      collect
+    );
+    // Get more response info...
+    // const { statusCode, headers } = httpResponse;
+    return {
+      jsonResponse: JSON.parse(body),
+      httpStatusCode: httpResponse.statusCode,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      // const { statusCode, headers } = error;
+      throw new Error(error.message);
+    }
+  }
+};
+
+app.post("/api/orders/:orderID/authorize", async (req, res) => {
+  try {
+    const { orderID } = req.params;
+    const { jsonResponse, httpStatusCode } = await authorizeOrder(orderID);
+    res.status(httpStatusCode).json(jsonResponse);
+  } catch (error) {
+    console.error("Failed to create order:", error);
+    res.status(500).json({ error: "Failed to capture order." });
+  }
+});
+
+/**
  * Capture payment for the created order to complete the transaction.
  * @see https://developer.paypal.com/docs/api/orders/v2/#orders_capture
  */
@@ -195,9 +233,8 @@ const authorizationsCapture = async (authorizationId) => {
   };
 
   try {
-    const { body, ...httpResponse } = await paymentsController.authorizationsCapture(
-      collect
-    );
+    const { body, ...httpResponse } =
+      await paymentsController.authorizationsCapture(collect);
     // Get more response info...
     // const { statusCode, headers } = httpResponse;
     return {
@@ -215,7 +252,9 @@ const authorizationsCapture = async (authorizationId) => {
 app.post("/api/orders/:authorizationId/captureAuthorize", async (req, res) => {
   try {
     const { authorizationId } = req.params;
-    const { jsonResponse, httpStatusCode } = await authorizationsCapture(authorizationId);
+    const { jsonResponse, httpStatusCode } = await authorizationsCapture(
+      authorizationId
+    );
     res.status(httpStatusCode).json(jsonResponse);
   } catch (error) {
     console.error("Failed to create order:", error);
