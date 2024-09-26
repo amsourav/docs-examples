@@ -1,16 +1,22 @@
 using System;
-using System.IO;
+using System.Collections.Generic;
 using System.Net.Http;
-using System.Text;
+using System.Runtime.Serialization;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using PaypalServerSDK.Standard;
+using PaypalServerSDK.Standard.Authentication;
+using PaypalServerSDK.Standard.Controllers;
+using PaypalServerSDK.Standard.Http.Response;
+using PaypalServerSDK.Standard.Models;
+using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 
 namespace PayPalAdvancedIntegration;
 
@@ -62,7 +68,9 @@ public class Startup
 [ApiController]
 public class CheckoutController : Controller
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly OrdersController _ordersController;
+    private readonly PaymentsController _paymentsController;
+
     private IConfiguration _configuration { get; }
     private string _paypalClientId
     {
@@ -72,12 +80,30 @@ public class CheckoutController : Controller
     {
         get { return _configuration["PAYPAL_CLIENT_SECRET"]; }
     }
-    private readonly string _base = "https://api-m.sandbox.paypal.com";
 
-    public CheckoutController(IHttpClientFactory httpClientFactory, IConfiguration configuration)
+    private readonly ILogger<CheckoutController> _logger;
+
+    public CheckoutController(IConfiguration configuration, ILogger<CheckoutController> logger)
     {
-        _httpClientFactory = httpClientFactory;
         _configuration = configuration;
+        _logger = logger;
+
+        // Initialize the PayPal SDK client
+        PaypalServerSDKClient client = new PaypalServerSDKClient.Builder()
+            .Environment(PaypalServerSDK.Standard.Environment.Sandbox)
+            .ClientCredentialsAuth(
+                new ClientCredentialsAuthModel.Builder(_paypalClientId, _paypalClientSecret).Build()
+            )
+            .LoggingConfig(config =>
+                config
+                    .LogLevel(LogLevel.Information)
+                    .RequestConfig(reqConfig => reqConfig.Body(true))
+                    .ResponseConfig(respConfig => respConfig.Headers(true))
+            )
+            .Build();
+
+        _ordersController = client.OrdersController;
+        _paymentsController = client.PaymentsController;
     }
 
     [HttpPost("api/orders")]
@@ -86,7 +112,7 @@ public class CheckoutController : Controller
         try
         {
             var result = await _CreateOrder(cart);
-            return StatusCode((int)result.httpStatusCode, result.jsonResponse);
+            return StatusCode((int)result.StatusCode, result.Data);
         }
         catch (Exception ex)
         {
@@ -101,7 +127,7 @@ public class CheckoutController : Controller
         try
         {
             var result = await _CaptureOrder(orderID);
-            return StatusCode((int)result.httpStatusCode, result.jsonResponse);
+            return StatusCode((int)result.StatusCode, result.Data);
         }
         catch (Exception ex)
         {
@@ -110,91 +136,150 @@ public class CheckoutController : Controller
         }
     }
 
-    private async Task<string> GenerateAccessToken()
+    [HttpPost("api/orders/{orderID}/authorize")]
+    public async Task<IActionResult> AuthorizeOrder(string orderID)
     {
-        if (string.IsNullOrEmpty(_paypalClientId) || string.IsNullOrEmpty(_paypalClientSecret))
+        try
         {
-            throw new Exception("MISSING_API_CREDENTIALS");
+            var result = await _AuthorizeOrder(orderID);
+            return StatusCode((int)result.StatusCode, result.Data);
         }
-
-        var auth = Convert.ToBase64String(
-            Encoding.UTF8.GetBytes($"{_paypalClientId}:{_paypalClientSecret}")
-        );
-        var client = _httpClientFactory.CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Post, $"{_base}/v1/oauth2/token")
+        catch (Exception ex)
         {
-            Content = new StringContent(
-                "grant_type=client_credentials",
-                Encoding.UTF8,
-                "application/x-www-form-urlencoded"
-            )
-        };
-        request.Headers.Add("Authorization", $"Basic {auth}");
+            Console.Error.WriteLine("Failed to authorize order:", ex);
+            return StatusCode(500, new { error = "Failed to authorize order." });
+        }
+    }
 
-        var response = await client.SendAsync(request);
-        var data = JsonConvert.DeserializeObject<dynamic>(
-            await response.Content.ReadAsStringAsync()
-        );
-        return data.access_token;
+    [HttpPost("api/orders/{authorizationID}/captureAuthorize")]
+    public async Task<IActionResult> CaptureAuthorizeOrder(string authorizationID)
+    {
+        try
+        {
+            var result = await _CaptureAuthorizeOrder(authorizationID);
+            return StatusCode((int)result.StatusCode, result.Data);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Failed to authorize order:", ex);
+            return StatusCode(500, new { error = "Failed to authorize order." });
+        }
+    }
+
+    [HttpPost("api/payments/refund")]
+    public async Task<IActionResult> RefundCapture([FromBody] dynamic body)
+    {
+        try
+        {
+            var result = await _RefundCapture((string) body.capturedPaymentId);
+            return StatusCode((int)result.StatusCode, result.Data);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Failed to refund capture:", ex);
+            return StatusCode(500, new { error = "Failed to refund capture." });
+        }
     }
 
     private async Task<dynamic> _CreateOrder(dynamic cart)
     {
-        var accessToken = await GenerateAccessToken();
-        var url = $"{_base}/v2/checkout/orders";
-        var payload = new
+        OrdersCreateInput ordersCreateInput = new OrdersCreateInput
         {
-            intent = "CAPTURE",
-            purchase_units = new[]
+            Body = new OrderRequest
             {
-                new { amount = new { currency_code = "USD", value = "100.00" } }
-            }
+                Intent = CheckoutPaymentIntent.CAPTURE,
+                PurchaseUnits = new List<PurchaseUnitRequest>
+                {
+                    new PurchaseUnitRequest
+                    {
+                        Amount = new AmountWithBreakdown { CurrencyCode = "USD", MValue = "100", },
+                        Shipping = new ShippingDetails
+                        {
+                            Options = new List<ShippingOption>
+                            {
+                                new ShippingOption
+                                {
+                                    Id = "1",
+                                    Label = "Free Shipping",
+                                    Selected = true,
+                                    Type = ShippingType.SHIPPING,
+                                    Amount = new Money { CurrencyCode = "USD", MValue = "0", },
+                                },
+                                new ShippingOption
+                                {
+                                    Id = "2",
+                                    Label = "USPS Priority Shipping",
+                                    Selected = false,
+                                    Type = ShippingType.SHIPPING,
+                                    Amount = new Money { CurrencyCode = "USD", MValue = "5", },
+                                },
+                            },
+                        },
+                    },
+                },
+
+                PaymentSource = new PaymentSource
+                {
+                    Card = new CardRequest
+                    {
+                        Attributes = new CardAttributes
+                        {
+                            Verification = new CardVerification
+                            {
+                                Method = CardVerificationMethod.SCAWHENREQUIRED
+                            },
+                        },
+                    },
+                },
+            },
         };
 
-        var client = _httpClientFactory.CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Post, url)
-        {
-            Content = new StringContent(
-                JsonConvert.SerializeObject(payload),
-                Encoding.UTF8,
-                "application/json"
-            )
-        };
-        request.Headers.Add("Authorization", $"Bearer {accessToken}");
-
-        var response = await client.SendAsync(request);
-        return await HandleResponse(response);
+        ApiResponse<Order> result = await _ordersController.OrdersCreateAsync(ordersCreateInput);
+        return result;
     }
 
     private async Task<dynamic> _CaptureOrder(string orderID)
     {
-        var accessToken = await GenerateAccessToken();
-        var url = $"{_base}/v2/checkout/orders/{orderID}/capture";
+        OrdersCaptureInput ordersCaptureInput = new OrdersCaptureInput { Id = orderID, };
 
-        var client = _httpClientFactory.CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Post, url)
-        {
-            Content = new StringContent("", Encoding.UTF8, "application/json")
-        };
-        request.Headers.Add("Authorization", $"Bearer {accessToken}");
+        ApiResponse<Order> result = await _ordersController.OrdersCaptureAsync(ordersCaptureInput);
 
-        var response = await client.SendAsync(request);
-        return await HandleResponse(response);
+        return result;
     }
 
-    private async Task<dynamic> HandleResponse(HttpResponseMessage response)
+    private async Task<dynamic> _CaptureAuthorizeOrder(string authorizationID)
     {
-        try
+        AuthorizationsCaptureInput authorizationsCaptureInput = new AuthorizationsCaptureInput
         {
-            var jsonResponse = JsonConvert.DeserializeObject<dynamic>(
-                await response.Content.ReadAsStringAsync()
-            );
-            return new { jsonResponse, httpStatusCode = response.StatusCode };
-        }
-        catch (Exception)
-        {
-            var errorMessage = await response.Content.ReadAsStringAsync();
-            throw new Exception(errorMessage);
-        }
+            AuthorizationId = authorizationID,
+        };
+
+        ApiResponse<CapturedPayment> result = await _paymentsController.AuthorizationsCaptureAsync(
+            authorizationsCaptureInput
+        );
+
+        return result;
+    }
+
+    private async Task<dynamic> _AuthorizeOrder(string orderID)
+    {
+        OrdersAuthorizeInput ordersAuthorizeInput = new OrdersAuthorizeInput { Id = orderID, };
+
+        ApiResponse<OrderAuthorizeResponse> result = await _ordersController.OrdersAuthorizeAsync(
+            ordersAuthorizeInput
+        );
+
+        return result;
+    }
+
+    private async Task<dynamic> _RefundCapture(string captureID)
+    {
+        CapturesRefundInput capturesRefundInput = new CapturesRefundInput { CaptureId = captureID };
+
+        ApiResponse<Refund> result = await _paymentsController.CapturesRefundAsync(
+            capturesRefundInput
+        );
+
+        return result;
     }
 }
