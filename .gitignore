@@ -104,3 +104,6 @@ dist
 *.sln
 
 *.local
+
+
+*.idea
