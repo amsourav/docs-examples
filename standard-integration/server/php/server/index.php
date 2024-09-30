@@ -49,6 +49,12 @@ if ($endpoint === "/") {
     }
 }
 
+/*{createOrder}*/
+
+/*{captureOrder}*/
+
+/*{authorizeOrder}*/
+
 /**
  * Create an order to start the transaction.
  * @see https://developer.paypal.com/docs/api/orders/v2/#orders_create
@@ -179,6 +185,37 @@ if (str_ends_with($endpoint, "/authorize")) {
     }
 }
 
+/**
+ * Captures an authorized payment, by ID.
+ * @see https://developer.paypal.com/docs/api/payments/v2/#authorizations_capture
+ */
+function captureAuthorize($authorizationId)
+{
+    global $client;
+
+    $captureAuthorizeBody = [
+        'authorizationId' => $authorizationId,
+    ];
+
+    $apiResponse = $client->getPaymentsController()->authorizationsCapture($captureAuthorizeBody);
+
+    return handleResponse($apiResponse);
+
+}
+
+if (str_ends_with($endpoint, "/captureAuthorize")) {
+    $urlSegments = explode("/", $endpoint);
+    end($urlSegments); // Will set the pointer to the end of array
+    $authorizationId = prev($urlSegments);
+    header("Content-Type: application/json");
+    try {
+        $captureAuthResponse = captureAuthorize($authorizationId);
+        echo json_encode($captureAuthResponse["jsonResponse"]);
+    } catch (Exception $e) {
+        echo json_encode(["error" => $e->getMessage()]);
+        http_response_code(500);
+    }
+}
 
 /**
  * Refunds a captured payment, by ID.
@@ -214,37 +251,5 @@ if ($endpoint === "/api/payments/refund") {
     }
 }
 
-
-/**
- * Captures an authorized payment, by ID.
- * @see https://developer.paypal.com/docs/api/payments/v2/#authorizations_capture
- */
-function captureAuthorize($authorizationId)
-{
-    global $client;
-
-    $captureAuthorizeBody = [
-        'authorizationId' => $authorizationId,
-    ];
-
-    $apiResponse = $client->getPaymentsController()->authorizationsCapture($captureAuthorizeBody);
-
-    return handleResponse($apiResponse);
-
-}
-
-if (str_ends_with($endpoint, "/captureAuthorize")) {
-    $urlSegments = explode("/", $endpoint);
-    end($urlSegments); // Will set the pointer to the end of array
-    $authorizationId = prev($urlSegments);
-    header("Content-Type: application/json");
-    try {
-        $captureAuthResponse = captureAuthorize($authorizationId);
-        echo json_encode($captureAuthResponse["jsonResponse"]);
-    } catch (Exception $e) {
-        echo json_encode(["error" => $e->getMessage()]);
-        http_response_code(500);
-    }
-}
 
 ?>

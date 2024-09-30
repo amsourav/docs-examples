@@ -121,66 +121,6 @@ public class CheckoutController : Controller
         }
     }
 
-    [HttpPost("api/orders/{orderID}/capture")]
-    public async Task<IActionResult> CaptureOrder(string orderID)
-    {
-        try
-        {
-            var result = await _CaptureOrder(orderID);
-            return StatusCode((int)result.StatusCode, result.Data);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine("Failed to capture order:", ex);
-            return StatusCode(500, new { error = "Failed to capture order." });
-        }
-    }
-
-    [HttpPost("api/orders/{orderID}/authorize")]
-    public async Task<IActionResult> AuthorizeOrder(string orderID)
-    {
-        try
-        {
-            var result = await _AuthorizeOrder(orderID);
-            return StatusCode((int)result.StatusCode, result.Data);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine("Failed to authorize order:", ex);
-            return StatusCode(500, new { error = "Failed to authorize order." });
-        }
-    }
-
-    [HttpPost("api/orders/{authorizationID}/captureAuthorize")]
-    public async Task<IActionResult> CaptureAuthorizeOrder(string authorizationID)
-    {
-        try
-        {
-            var result = await _CaptureAuthorizeOrder(authorizationID);
-            return StatusCode((int)result.StatusCode, result.Data);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine("Failed to authorize order:", ex);
-            return StatusCode(500, new { error = "Failed to authorize order." });
-        }
-    }
-
-    [HttpPost("api/payments/refund")]
-    public async Task<IActionResult> RefundCapture([FromBody] dynamic body)
-    {
-        try
-        {
-            var result = await _RefundCapture((string) body.capturedPaymentId);
-            return StatusCode((int)result.StatusCode, result.Data);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine("Failed to refund capture:", ex);
-            return StatusCode(500, new { error = "Failed to refund capture." });
-        }
-    }
-
     private async Task<dynamic> _CreateOrder(dynamic cart)
     {
         OrdersCreateInput ordersCreateInput = new OrdersCreateInput
@@ -236,6 +176,66 @@ public class CheckoutController : Controller
 
         ApiResponse<Order> result = await _ordersController.OrdersCreateAsync(ordersCreateInput);
         return result;
+    }
+
+    [HttpPost("api/orders/{orderID}/capture")]
+    public async Task<IActionResult> CaptureOrder(string orderID)
+    {
+        try
+        {
+            var result = await _CaptureOrder(orderID);
+            return StatusCode((int)result.StatusCode, result.Data);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Failed to capture order:", ex);
+            return StatusCode(500, new { error = "Failed to capture order." });
+        }
+    }
+
+    [HttpPost("api/orders/{orderID}/authorize")]
+    public async Task<IActionResult> AuthorizeOrder(string orderID)
+    {
+        try
+        {
+            var result = await _AuthorizeOrder(orderID);
+            return StatusCode((int)result.StatusCode, result.Data);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Failed to authorize order:", ex);
+            return StatusCode(500, new { error = "Failed to authorize order." });
+        }
+    }
+
+    [HttpPost("api/orders/{authorizationID}/captureAuthorize")]
+    public async Task<IActionResult> CaptureAuthorizeOrder(string authorizationID)
+    {
+        try
+        {
+            var result = await _CaptureAuthorizeOrder(authorizationID);
+            return StatusCode((int)result.StatusCode, result.Data);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Failed to authorize order:", ex);
+            return StatusCode(500, new { error = "Failed to authorize order." });
+        }
+    }
+
+    [HttpPost("api/payments/refund")]
+    public async Task<IActionResult> RefundCapture([FromBody] dynamic body)
+    {
+        try
+        {
+            var result = await _RefundCapture((string)body.capturedPaymentId);
+            return StatusCode((int)result.StatusCode, result.Data);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Failed to refund capture:", ex);
+            return StatusCode(500, new { error = "Failed to refund capture." });
+        }
     }
 
     private async Task<dynamic> _CaptureOrder(string orderID)
