@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Net.Http;
-using System.Runtime.Serialization;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -10,7 +8,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using PaypalServerSDK.Standard;
 using PaypalServerSDK.Standard.Authentication;
 using PaypalServerSDK.Standard.Controllers;
@@ -74,11 +71,11 @@ public class CheckoutController : Controller
     private IConfiguration _configuration { get; }
     private string _paypalClientId
     {
-        get { return _configuration["PAYPAL_CLIENT_ID"]; }
+        get { return System.Environment.GetEnvironmentVariable("PAYPAL_CLIENT_ID"); }
     }
     private string _paypalClientSecret
     {
-        get { return _configuration["PAYPAL_CLIENT_SECRET"]; }
+        get { return System.Environment.GetEnvironmentVariable("PAYPAL_CLIENT_SECRET"); }
     }
 
     private readonly ILogger<CheckoutController> _logger;
@@ -123,11 +120,13 @@ public class CheckoutController : Controller
 
     private async Task<dynamic> _CreateOrder(dynamic cart)
     {
+        CheckoutPaymentIntent intent = (CheckoutPaymentIntent)Enum.Parse(typeof(CheckoutPaymentIntent), "CAPTURE", true);
+
         OrdersCreateInput ordersCreateInput = new OrdersCreateInput
         {
             Body = new OrderRequest
             {
-                Intent = CheckoutPaymentIntent.CAPTURE,
+                Intent = intent,
                 PurchaseUnits = new List<PurchaseUnitRequest>
                 {
                     new PurchaseUnitRequest
@@ -148,7 +147,7 @@ public class CheckoutController : Controller
                                 new ShippingOption
                                 {
                                     Id = "2",
-                                    Label = "USPS Priority Shipping",
+                                    Label = "Priority Shipping",
                                     Selected = false,
                                     Type = ShippingType.SHIPPING,
                                     Amount = new Money { CurrencyCode = "USD", MValue = "5", },
@@ -166,7 +165,7 @@ public class CheckoutController : Controller
                         {
                             Verification = new CardVerification
                             {
-                                Method = CardVerificationMethod.SCAWHENREQUIRED
+                                Method = (CardVerificationMethod)Enum.Parse(typeof(CardVerificationMethod), "SCA_ALWAYS".Replace("_", ""), true)
                             },
                         },
                     },
