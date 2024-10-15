@@ -34,6 +34,9 @@ setup_backend() {
         php)
             cd "$SERVER_DIR" && cd php && composer install
             ;;
+        python)
+            cd "$SERVER_DIR" && cd python && pip install -r requirements.txt
+            ;;
         *)
             echo "Unknown server: $VISIBLE_FOLDER_SERVER"
             exit 1
@@ -60,6 +63,9 @@ start_backend() {
             ;;
         php)
             cd "$SERVER_DIR/php" && composer start
+            ;;
+        python)
+            cd "$SERVER_DIR" && cd python && flask --app server run
             ;;
         *)
             echo "Unknown server: $VISIBLE_FOLDER_SERVER"
