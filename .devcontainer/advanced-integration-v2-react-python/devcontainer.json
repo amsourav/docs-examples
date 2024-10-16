@@ -1,10 +1,10 @@
 // For more details, see https://aka.ms/devcontainer.json.
 {
-  "name": "advanced-integration-v2/html/python",
+  "name": "advanced-integration-v2/react/python",
   "image": "mcr.microsoft.com/devcontainers/python:3.12",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   // Use 'onCreateCommand' to run commands when creating the container.
-  "onCreateCommand": "bash .devcontainer/advanced-integration-v2-html-python/welcome-message.sh",
+  "onCreateCommand": "bash .devcontainer/advanced-integration-v2-react-python/welcome-message.sh",
   // Use 'postCreateCommand' to run commands after the container is created.
   "postCreateCommand": "chmod +x .devcontainer/update_settings.sh && .devcontainer/update_settings.sh && chmod +x .devcontainer/post-commands.sh && .devcontainer/post-commands.sh post-create",
   // Use 'postAttachCommand' to run commands when attaching to the container.
@@ -16,7 +16,7 @@
       "label": "Preview of Advanced Checkout Flow"
     },
     "3000": {
-      "label": "HTML",
+      "label": "React",
       "onAutoForward": "openBrowserOnce"
     }
   },
@@ -32,7 +32,7 @@
   },
   "containerEnv": {
     "VISIBLE_FOLDER_SERVER": "python",
-    "VISIBLE_FOLDER_CLIENT": "html",
+    "VISIBLE_FOLDER_CLIENT": "react",
     "VISIBLE_FOLDER_PROJECT": "advanced-integration",
     "VISIBLE_FOLDER_VERSION": "v2"
   },

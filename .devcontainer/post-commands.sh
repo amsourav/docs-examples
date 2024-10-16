@@ -35,7 +35,10 @@ setup_backend() {
             cd "$SERVER_DIR" && cd php && composer install
             ;;
         python)
-            cd "$SERVER_DIR" && cd python && pip install -r requirements.txt
+            cd "$SERVER_DIR" && cd python && python -m venv .venv && pip install -r requirements.txt
+            ;;
+        ruby)
+            cd "$SERVER_DIR" && cd ruby && bundle install
             ;;
         *)
             echo "Unknown server: $VISIBLE_FOLDER_SERVER"
@@ -66,6 +69,9 @@ start_backend() {
             ;;
         python)
             cd "$SERVER_DIR" && cd python && flask --app server run
+            ;;
+        ruby)
+            cd "$SERVER_DIR" && cd ruby && bundle exec ruby server.rb
             ;;
         *)
             echo "Unknown server: $VISIBLE_FOLDER_SERVER"
